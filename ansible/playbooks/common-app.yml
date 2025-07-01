@@ -1,0 +1,40 @@
+- name: Common app
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install required system packages
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-setuptools
+          - git
+        state: latest
+        update_cache: true
+    
+    - name: Add Docker GPG apt key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+    
+    - name: Update apt and install docker-ce and docker-compose
+      apt:
+        pkg:
+          - docker-ce
+          - docker-compose
+        state: latest
+        update_cache: true
+    
+    - name: Add user to docker group
+      ansible.builtin.user:
+        name: jenkins
+        groups: docker
+        append: yes

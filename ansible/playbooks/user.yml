@@ -1,0 +1,46 @@
+- name: Create admin user with SSH and sudo
+  hosts: all
+  become: yes
+
+  vars:
+    new_user: ppawlowski
+
+  tasks:
+    - name: Create user
+      user:
+        name: "{{ new_user }}"
+        shell: /bin/bash
+        groups: sudo
+        append: yes
+        state: present
+        create_home: yes
+
+    - name: Create .ssh catalog
+      file:
+        path: "/home/{{ new_user }}/.ssh"
+        state: directory
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        mode: '0700'
+
+    - name: Get info about authorized_keys
+      slurp:
+        src: /home/ubuntu/.ssh/authorized_keys
+      register: ubuntu_keys
+    
+    - name: Copy public file
+      copy:
+        content: "{{ ubuntu_keys.content | b64decode }}"
+        dest: "/home/{{ new_user }}/.ssh/authorized_keys"
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        mode: '0600'
+    
+    - name: Validate user credentials
+      lineinfile:
+        path: /etc/sudoers.d/{{ new_user }}
+        create: yes
+        line: "{{ new_user }} ALL=(ALL) NOPASSWD:ALL"
+        owner: root
+        group: root
+        mode: '0440'

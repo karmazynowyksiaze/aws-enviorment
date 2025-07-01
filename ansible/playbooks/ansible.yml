@@ -1,0 +1,9 @@
+- name: Local Playbook
+  hosts: localhost
+  tags: localhost
+  become: yes
+
+  tasks:
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: ansible-controller

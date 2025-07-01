@@ -1,0 +1,98 @@
+---
+- name: Install Jenkins on Ubuntu
+  tags: jenkins
+  hosts: jenkins-master
+  become: yes
+  
+  tasks:
+    - name: Set a hostname
+      ansible.builtin.hostname:
+        name: jenkins-master
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install OpenJDK 17 JRE
+      apt:
+        name: openjdk-17-jre
+        state: present
+
+    - name: Add Jenkins GPG key
+      ansible.builtin.apt_key:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        state: present
+
+    - name: Add Jenkins repository
+      ansible.builtin.apt_repository:
+        repo: deb https://pkg.jenkins.io/debian-stable binary/
+        state: present
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+
+    - name: Start Jenkins service
+      systemd:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Wait for Jenkins to be up
+      wait_for:
+        port: 8080
+        delay: 5
+        timeout: 60
+      
+    - name: Check if Jenkins initial admin password
+      stat:
+        path: /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_admin_pass
+
+    - name: Get Jenkins initial admin password
+      command: cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_password
+      changed_when: false
+      when: jenkins_admin_pass.stat.exists
+
+    - name: Display Jenkins initial admin password
+      debug:
+        msg: "Jenkins initial admin password: {{ jenkins_password.stdout }}"
+      when: jenkins_admin_pass.stat.exists
+
+    - name: Install Nginx and Certbot
+      apt: 
+        name:
+          - nginx
+          - python3-certbot-nginx
+        state: present
+        update_cache: yes
+      become: yes
+    
+    - name: Reverse proxy for Jenkins
+      template:
+        src: ../templates/jenkins_nginx.conf.j2
+        dest: /etc/nginx/sites-available/jenkins
+      become: yes
+
+    - name: Activate Reverse Proxy
+      file:
+        src: /etc/nginx/sites-available/jenkins
+        dest: /etc/nginx/sites-enabled/jenkins
+        state: link
+        force: yes
+      become: yes
+
+    - name: Reload Nginx
+      service:
+        name: nginx
+        state: reloaded
+      become: yes
+      
+    - name: Get Certificate from letsencrypt
+      shell: |
+        certbot --nginx --non-interactive --agree-tos --email ppawlowski186@gmail.com -d jenkins.crismonrpince.com
+      args:
+        creates: /etc/letsencrypt/live/jenkins.crismonrpince.com/fullchain.pem
+      become: yes
